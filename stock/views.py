@@ -77,14 +77,23 @@ def get_details(request, ticker):
 
     # can be optimized using lag function ??
     
-    query = f"SELECT " \
+    query = "SELECT " \
                 "FROM_UNIXTIME(so.timestamp, '%Y-%m-%d') as date, " \
                 "Round(sc.value, 2) as close, " \
-                "so.value as open, " \
+                "Round(so.value, 2) as open, " \
                 f"Round((SELECT psc.value FROM stock_stockclose AS psc WHERE psc.symbol_id = '{ticker}' AND psc.timestamp < sc.timestamp ORDER BY psc.timestamp DESC LIMIT 1), 2) as prev_close,  " \
+                "Round(sc.value - so.value, 2) as total_change, " \
+                "Round((1 - (sc.value / so.value)) * 100, 2) as change_percent, " \
+                "Round(sh.value, 2) as today_high, " \
+                "Round(sl.value, 2) as today_low, " \
+                "sv.value as volume, " \
                 f"Round((SELECT MAX(msc.value) FROM stock_stockclose AS msc WHERE msc.symbol_id = '{ticker}' AND DATEDIFF(FROM_UNIXTIME(sc.timestamp), FROM_UNIXTIME(msc.timestamp)) < 31 AND DATEDIFF(FROM_UNIXTIME(sc.timestamp), FROM_UNIXTIME(msc.timestamp)) > -1), 2) as 30_day_high, " \
                 f"Round((SELECT MIN(msc.value) FROM stock_stockclose AS msc WHERE msc.symbol_id = '{ticker}' AND DATEDIFF(FROM_UNIXTIME(sc.timestamp), FROM_UNIXTIME(msc.timestamp)) < 31 AND DATEDIFF(FROM_UNIXTIME(sc.timestamp), FROM_UNIXTIME(msc.timestamp)) > -1), 2) as 30_day_low " \
-            "FROM stock_stockclose as sc JOIN stock_stockopen as so ON sc.timestamp = so.timestamp " \
+            "FROM stock_stockclose as sc " \
+                "JOIN stock_stockopen as so ON sc.timestamp = so.timestamp " \
+                "JOIN stock_stockhigh as sh ON sc.timestamp = sh.timestamp " \
+                "JOIN stock_stocklow as sl ON sc.timestamp = sl.timestamp " \
+                "JOIN stock_stockvolume as sv ON sc.timestamp = sv.timestamp " \
             f"WHERE sc.symbol_id = '{ticker}' " \
             "ORDER BY date DESC;"
     
@@ -108,13 +117,21 @@ def get_moving_average(request, ticker):
     query = "SELECT " \
             "FROM_UNIXTIME(a.timestamp, '%Y-%m-%d') as date, " \
             "Round(a.value, 2) as closing_value, " \
-            "Round((SELECT " \
-                "CASE WHEN COUNT(b.value) > 19 THEN SUM(b.value) / COUNT(b.value) ELSE NULL END " \
-                "FROM stock_stockclose AS b " \
-                f"WHERE b.symbol_id = '{ticker}' AND a.timestamp > b.timestamp ORDER BY b.timestamp DESC), 2) AS 20_Day_Moving_Average " \
+            "Round((SELECT CASE WHEN COUNT(prev_20_values.prev_values) > 19 THEN AVG(prev_20_values.prev_values) ELSE null END "\
+                "FROM (SELECT b.value as prev_values " \
+                    "FROM stock_stockclose AS b " \
+                    f"WHERE b.symbol_id = '{ticker}' AND a.timestamp > b.timestamp ORDER BY b.timestamp DESC LIMIT 20) as prev_20_values), 2) AS 20_Day_Moving_Average, " \
+            "Round((SELECT CASE WHEN COUNT(prev_50_values.prev_values) > 49 THEN AVG(prev_50_values.prev_values) ELSE null END "\
+                "FROM (SELECT b.value as prev_values " \
+                    "FROM stock_stockclose AS b " \
+                    f"WHERE b.symbol_id = '{ticker}' AND a.timestamp > b.timestamp ORDER BY b.timestamp DESC LIMIT 50) as prev_50_values), 2) AS 50_Day_Moving_Average, " \
+            "Round((SELECT CASE WHEN COUNT(prev_100_values.prev_values) > 99 THEN AVG(prev_100_values.prev_values) ELSE null END "\
+                "FROM (SELECT b.value as prev_values " \
+                    "FROM stock_stockclose AS b " \
+                    f"WHERE b.symbol_id = '{ticker}' AND a.timestamp > b.timestamp ORDER BY b.timestamp DESC LIMIT 100) as prev_100_values), 2) AS 100_Day_Moving_Average " \
             "FROM stock_stockclose AS a " \
             f"WHERE a.symbol_id = '{ticker}' " \
-            "ORDER BY a.timestamp ASC;"
+            "ORDER BY a.timestamp DESC;"
     
     with connection.cursor() as cursor:
         cursor.execute(query)
