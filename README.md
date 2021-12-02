@@ -48,16 +48,16 @@ At least Python 3.6 installed.
 
 #### Stock Details With 1 Day Interval:
 
-http://127.0.0.1:8000/stock/details/LTI.NS/
+http://127.0.0.1:8000/stock/details/{ticker_symbol}/
 
 Output:
 
-![LTI.NS](./assets/details.PNG)
+![{LTI.NS}](./assets/details.PNG)
 
 
 #### Moving Averages:
 
-http://127.0.0.1:8000/stock/moving-average/LTI.NS/
+http://127.0.0.1:8000/stock/moving-average/{ticker_symbol}/
 
 Output:
 
