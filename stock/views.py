@@ -142,3 +142,26 @@ def get_moving_average(request, ticker):
     }, status=status.HTTP_200_OK)
     
     
+@api_view(["GET"])
+def get_RSI_14(request, ticker):
+    
+    query = "SELECT "\
+            "FROM_UNIXTIME(a.timestamp, '%Y-%m-%d') as date, " \
+            "ROUND(100 - (100 / (1 + (SELECT AVG(gain) FROM (SELECT CASE WHEN sc.value - so.value > 0 THEN sc.value - so.value ELSE 0 END as gain " \
+                "FROM stock_stockopen AS so JOIN stock_stockclose AS sc ON sc.timestamp = so.timestamp " \
+                f"WHERE a.timestamp >= sc.timestamp AND so.symbol_id = '{ticker}' ORDER BY sc.timestamp DESC LIMIT 14) as gain_table) /  " \
+                "(SELECT AVG(gain) FROM (SELECT CASE WHEN sc.value - so.value < 0 THEN so.value - sc.value ELSE 0 END as gain " \
+                    "FROM stock_stockopen AS so JOIN stock_stockclose AS sc ON sc.timestamp = so.timestamp " \
+                    f"WHERE a.timestamp >= sc.timestamp AND so.symbol_id = '{ticker}' ORDER BY sc.timestamp DESC LIMIT 14) as gain_table))), 2) as RI " \
+            "FROM stock_stockclose AS a " \
+            f"WHERE a.symbol_id = '{ticker}' " \
+            "ORDER BY date DESC;"
+        
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        result = dictfetchall(cursor)
+
+    return Response({
+        "result": result
+    }, status=status.HTTP_200_OK)
+    
